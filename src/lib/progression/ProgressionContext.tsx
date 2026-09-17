@@ -25,6 +25,7 @@ interface ProgressionContextValue {
   markTributaryVisited: (tributaryId: string) => Promise<void>;
   registerDiscoveredItems: (itemIds: string | string[]) => Promise<void>;
   isItemDiscovered: (itemId: string) => boolean;
+  trackInteraction: (event: Omit<import('../persistence/types').InteractionEvent, 'occurredAt'>) => Promise<void>;
   setLastVisited: (route: string) => Promise<void>;
   resetProgress: () => Promise<void>;
   isTerritoryUnlocked: (territoryId: string) => boolean;
@@ -165,7 +166,36 @@ export function ProgressionProvider({ children }: { children: React.ReactNode })
     [progress.discoveredItems]
   );
 
-  const openJournal = useCallback(() => setIsJournalOpen(true), []);
+  const [sessionId] = useState<string>(() => {
+    if (typeof window !== 'undefined' && window.sessionStorage) {
+      const existing = window.sessionStorage.getItem('plural_session_id');
+      if (existing) return existing;
+      const created = 'sess_' + Math.random().toString(36).substring(2, 11);
+      window.sessionStorage.setItem('plural_session_id', created);
+      return created;
+    }
+    return 'sess_' + Math.random().toString(36).substring(2, 11);
+  });
+
+  const trackInteraction = useCallback(
+    async (event: Omit<import('../persistence/types').InteractionEvent, 'occurredAt'>) => {
+      const fullEvent: import('../persistence/types').InteractionEvent = {
+        ...event,
+        sessionId: event.sessionId || sessionId,
+        occurredAt: new Date().toISOString(),
+      };
+      await repo.recordInteractionEvent(fullEvent);
+    },
+    [repo, sessionId]
+  );
+
+  const openJournal = useCallback(() => {
+    setIsJournalOpen(true);
+    trackInteraction({
+      eventName: 'journal_opened',
+    });
+  }, [trackInteraction]);
+
   const closeJournal = useCallback(() => setIsJournalOpen(false), []);
 
   const value: ProgressionContextValue = {
@@ -178,6 +208,7 @@ export function ProgressionProvider({ children }: { children: React.ReactNode })
     markTributaryVisited,
     registerDiscoveredItems,
     isItemDiscovered,
+    trackInteraction,
     setLastVisited,
     resetProgress,
     isTerritoryUnlocked,

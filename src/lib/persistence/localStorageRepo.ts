@@ -7,6 +7,8 @@ import {
 import { reconcileProgress } from '../progression/unlockRules';
 
 const STORAGE_KEY = 'plural_gameful_river_progress_v1';
+const EVENTS_STORAGE_KEY = 'plural_gameful_river_events_v1';
+const MAX_LOCAL_EVENTS = 100;
 
 export class LocalStorageProgressionRepository implements ProgressionRepository {
   private getStorage(): Storage | null {
@@ -143,6 +145,36 @@ export class LocalStorageProgressionRepository implements ProgressionRepository 
     return updated;
   }
 
+  async recordInteractionEvent(event: import('./types').InteractionEvent): Promise<void> {
+    const storage = this.getStorage();
+    if (!storage) return;
+    try {
+      const raw = storage.getItem(EVENTS_STORAGE_KEY);
+      const list: import('./types').InteractionEvent[] = raw ? JSON.parse(raw) : [];
+      list.unshift(event);
+      if (list.length > MAX_LOCAL_EVENTS) {
+        list.length = MAX_LOCAL_EVENTS;
+      }
+      storage.setItem(EVENTS_STORAGE_KEY, JSON.stringify(list));
+    } catch (e) {
+      console.error('Error saving event to localStorage:', e);
+    }
+  }
+
+  async getInteractionEvents(limit = 50): Promise<import('./types').InteractionEvent[]> {
+    const storage = this.getStorage();
+    if (!storage) return [];
+    try {
+      const raw = storage.getItem(EVENTS_STORAGE_KEY);
+      if (!raw) return [];
+      const list: import('./types').InteractionEvent[] = JSON.parse(raw);
+      return list.slice(0, limit);
+    } catch (e) {
+      console.error('Error reading events from localStorage:', e);
+      return [];
+    }
+  }
+
   async setLastVisited(route: string): Promise<void> {
     const current = await this.getProgress();
     current.lastVisitedRoute = route;
@@ -153,6 +185,7 @@ export class LocalStorageProgressionRepository implements ProgressionRepository 
     const storage = this.getStorage();
     if (storage) {
       storage.removeItem(STORAGE_KEY);
+      storage.removeItem(EVENTS_STORAGE_KEY);
     }
     return { ...INITIAL_PROGRESS };
   }

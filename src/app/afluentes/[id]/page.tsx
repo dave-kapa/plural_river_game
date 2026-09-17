@@ -20,6 +20,7 @@ export default function TributaryPage({ params }: TributaryPageProps) {
     registerDiscoveredItems,
     areCreditsUnlocked,
     setLastVisited,
+    trackInteraction,
   } = useProgression();
 
   const isVisited = (progress.visitedTributaries || []).includes(id);
@@ -33,6 +34,11 @@ export default function TributaryPage({ params }: TributaryPageProps) {
   const handleRegisterHorizon = async () => {
     await markTributaryVisited(id);
     await registerDiscoveredItems(`t5:tributary:${id}`);
+    await trackInteraction({
+      eventName: 'tributary_registered',
+      territoryId: 'territorio-5',
+      targetId: id,
+    });
   };
 
   if (!tributary) {

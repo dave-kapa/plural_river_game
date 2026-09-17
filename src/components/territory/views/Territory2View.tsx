@@ -20,14 +20,23 @@ import {
 export function Territory2View() {
   const data = TERRITORIES_DATA['territorio-2'];
   const content = data.specificContent;
-  const { progress, saveTerritoryProgress, isTerritoryCompleted, registerDiscoveredItems } = useProgression();
+  const { progress, saveTerritoryProgress, isTerritoryCompleted, registerDiscoveredItems, trackInteraction } = useProgression();
 
   const isAlreadyCompleted = progress.territoryStatus['territorio-2'] === 'completed';
+  const t2Interactions = progress.territoryInteractions['territorio-2'] || {};
 
-  // Paso 1: Exploración de las 3 fuerzas
-  const [activeForceId, setActiveForceId] = useState<string>('force-scale');
+  // Paso 1: Exploración de las 3 fuerzas (Honest State Restoration)
+  const initialExploredForces = t2Interactions.exploredForces && t2Interactions.exploredForces.length > 0
+    ? t2Interactions.exploredForces
+    : (isAlreadyCompleted
+        ? content.threeForces.filter((f: any) => progress.discoveredItems.includes(`t2:force:${f.id}`)).map((f: any) => f.id)
+        : ['force-scale']);
+
+  const [activeForceId, setActiveForceId] = useState<string>(
+    initialExploredForces[0] || 'force-scale'
+  );
   const [exploredForces, setExploredForces] = useState<string[]>(
-    isAlreadyCompleted ? content.threeForces.map((f: any) => f.id) : ['force-scale']
+    initialExploredForces.length > 0 ? initialExploredForces : ['force-scale']
   );
 
   // Paso 2: Acordeón de capacidades adicionales
@@ -43,6 +52,11 @@ export function Territory2View() {
     const nextExplored = Array.from(new Set([...exploredForces, forceId]));
     setExploredForces(nextExplored);
     await registerDiscoveredItems(`t2:force:${forceId}`);
+    await trackInteraction({
+      eventName: 'force_discovered',
+      territoryId: 'territorio-2',
+      targetId: forceId,
+    });
 
     if (nextExplored.length >= 3 && !isAlreadyCompleted) {
       await saveTerritoryProgress(
@@ -51,6 +65,10 @@ export function Territory2View() {
         { exploredForces: nextExplored },
         data.journalPhrase
       );
+      await trackInteraction({
+        eventName: 'territory_completed',
+        territoryId: 'territorio-2',
+      });
     }
   };
 
@@ -66,14 +84,23 @@ export function Territory2View() {
         't2:scale:accion-colectiva',
         't2:scale:cultura-y-sistema',
       ]);
+      trackInteraction({
+        eventName: 'scale_explored',
+        territoryId: 'territorio-2',
+      });
     }
-  }, [allThreeForcesDiscovered, registerDiscoveredItems]);
+  }, [allThreeForcesDiscovered, registerDiscoveredItems, trackInteraction]);
 
   const handleToggleCapacity = async (capId: string) => {
     const isOpening = expandedCapacityId !== capId;
     setExpandedCapacityId(isOpening ? capId : null);
     if (isOpening) {
       await registerDiscoveredItems(`t2:capacity:${capId}`);
+      await trackInteraction({
+        eventName: 'capacity_opened',
+        territoryId: 'territorio-2',
+        targetId: capId,
+      });
     }
   };
 

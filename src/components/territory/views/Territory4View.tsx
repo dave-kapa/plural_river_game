@@ -20,22 +20,31 @@ import {
 export function Territory4View() {
   const data = TERRITORIES_DATA['territorio-4'];
   const content = data.specificContent;
-  const { progress, saveTerritoryProgress, registerDiscoveredItems } = useProgression();
+  const { progress, saveTerritoryProgress, registerDiscoveredItems, trackInteraction } = useProgression();
 
   const isAlreadyCompleted = progress.territoryStatus['territorio-4'] === 'completed';
+  const t4Interactions = progress.territoryInteractions['territorio-4'] || {};
 
-  // Paso 1: Construcción de la tabla (revelación de fases)
+  // Paso 1: Construcción de la tabla (5 momentos obligatorios)
   const [revealedPhasesCount, setRevealedPhasesCount] = useState<number>(
-    isAlreadyCompleted ? content.tableRows.length : 1
+    isAlreadyCompleted ? content.tableRows.length : (t4Interactions.revealedPhasesCount || 1)
   );
 
   // Fase seleccionada para ver su desglose profundo
   const [selectedPhaseIndex, setSelectedPhaseIndex] = useState<number>(0);
 
-  // Paso 2: Cuatro espacios explorados
-  const [activeSpaceId, setActiveSpaceId] = useState<string>('space-already-does');
+  // Paso 2: Cuatro espacios explorados (Honest State Restoration)
+  const initialExploredSpaces = t4Interactions.exploredSpaces && t4Interactions.exploredSpaces.length > 0
+    ? t4Interactions.exploredSpaces
+    : (isAlreadyCompleted
+        ? content.fourSpaces.filter((s: any) => progress.discoveredItems.includes(`t4:space:${s.id}`)).map((s: any) => s.id)
+        : ['space-already-does']);
+
+  const [activeSpaceId, setActiveSpaceId] = useState<string>(
+    initialExploredSpaces[0] || 'space-already-does'
+  );
   const [exploredSpaces, setExploredSpaces] = useState<string[]>(
-    isAlreadyCompleted ? content.fourSpaces.map((s: any) => s.id) : ['space-already-does']
+    initialExploredSpaces.length > 0 ? initialExploredSpaces : ['space-already-does']
   );
 
   // Registrar fase inicial y espacio inicial al montar
@@ -48,6 +57,11 @@ export function Territory4View() {
     setRevealedPhasesCount(nextCount);
     if (nextCount <= content.tableRows.length) {
       await registerDiscoveredItems(`t4:phase:${nextCount - 1}`);
+      await trackInteraction({
+        eventName: 'matrix_phase_revealed',
+        territoryId: 'territorio-4',
+        targetId: String(nextCount - 1),
+      });
     }
 
     // Progreso esencial: toda la tabla construida Y al menos 3 espacios examinados
@@ -59,6 +73,10 @@ export function Territory4View() {
           { revealedPhasesCount: nextCount, exploredSpaces },
           data.journalPhrase
         );
+        await trackInteraction({
+          eventName: 'territory_completed',
+          territoryId: 'territorio-4',
+        });
       }
     }
   };
@@ -68,6 +86,11 @@ export function Territory4View() {
     const nextExplored = Array.from(new Set([...exploredSpaces, spaceId]));
     setExploredSpaces(nextExplored);
     await registerDiscoveredItems(`t4:space:${spaceId}`);
+    await trackInteraction({
+      eventName: 'analysis_space_examined',
+      territoryId: 'territorio-4',
+      targetId: spaceId,
+    });
 
     // Progreso esencial: toda la tabla construida Y al menos 3 espacios examinados
     if (revealedPhasesCount >= content.tableRows.length && nextExplored.length >= 3 && !isAlreadyCompleted) {
@@ -77,6 +100,10 @@ export function Territory4View() {
         { revealedPhasesCount, exploredSpaces: nextExplored },
         data.journalPhrase
       );
+      await trackInteraction({
+        eventName: 'territory_completed',
+        territoryId: 'territorio-4',
+      });
     }
   };
 

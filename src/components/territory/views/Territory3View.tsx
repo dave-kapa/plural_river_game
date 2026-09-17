@@ -28,14 +28,23 @@ function toComponentId(name: string): string {
 export function Territory3View() {
   const data = TERRITORIES_DATA['territorio-3'];
   const content = data.specificContent;
-  const { progress, saveTerritoryProgress, isTerritoryCompleted, registerDiscoveredItems } = useProgression();
+  const { progress, saveTerritoryProgress, isTerritoryCompleted, registerDiscoveredItems, trackInteraction } = useProgression();
 
   const isAlreadyCompleted = progress.territoryStatus['territorio-3'] === 'completed';
+  const t3Interactions = progress.territoryInteractions['territorio-3'] || {};
 
-  // Zona activa
-  const [activeZoneId, setActiveZoneId] = useState<string>('zone-roots');
+  // Zona activa y Zonas exploradas (Honest State Restoration)
+  const initialExploredZones = t3Interactions.exploredZones && t3Interactions.exploredZones.length > 0
+    ? t3Interactions.exploredZones
+    : (isAlreadyCompleted
+        ? content.zones.filter((z: any) => progress.discoveredItems.includes(`t3:zone:${z.id}`)).map((z: any) => z.id)
+        : ['zone-roots']);
+
+  const [activeZoneId, setActiveZoneId] = useState<string>(
+    initialExploredZones[0] || 'zone-roots'
+  );
   const [exploredZones, setExploredZones] = useState<string[]>(
-    isAlreadyCompleted ? content.zones.map((z: any) => z.id) : ['zone-roots']
+    initialExploredZones.length > 0 ? initialExploredZones : ['zone-roots']
   );
 
   // Componente seleccionado dentro de la zona
@@ -52,6 +61,11 @@ export function Territory3View() {
     const nextExplored = Array.from(new Set([...exploredZones, zoneId]));
     setExploredZones(nextExplored);
     await registerDiscoveredItems(`t3:zone:${zoneId}`);
+    await trackInteraction({
+      eventName: 'zone_explored',
+      territoryId: 'territorio-3',
+      targetId: zoneId,
+    });
 
     // Progreso esencial: 4 de las 7 zonas exploradas
     if (nextExplored.length >= 4 && !isAlreadyCompleted) {
@@ -61,6 +75,10 @@ export function Territory3View() {
         { exploredZones: nextExplored },
         data.journalPhrase
       );
+      await trackInteraction({
+        eventName: 'territory_completed',
+        territoryId: 'territorio-3',
+      });
     }
   };
 
@@ -69,6 +87,11 @@ export function Territory3View() {
     setActiveComponentName(isCompSelected ? null : compName);
     if (!isCompSelected) {
       await registerDiscoveredItems(toComponentId(compName));
+      await trackInteraction({
+        eventName: 'component_opened',
+        territoryId: 'territorio-3',
+        targetId: compName,
+      });
     }
   };
 

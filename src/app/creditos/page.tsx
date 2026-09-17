@@ -20,7 +20,7 @@ import {
 import { ALL_TRIBUTARIES } from '@/lib/progression/unlockRules';
 
 export default function CreditsPage() {
-  const { areCreditsUnlocked, progress } = useProgression();
+  const { areCreditsUnlocked, progress, trackInteraction } = useProgression();
   const [copied, setCopied] = useState(false);
 
   const missingTributaries = ALL_TRIBUTARIES.filter(
@@ -32,6 +32,10 @@ export default function CreditsPage() {
   const handleCopy = () => {
     navigator.clipboard.writeText(assembledMasterParagraph);
     setCopied(true);
+    trackInteraction({
+      eventName: 'pitch_copied',
+      metadata: { length: assembledMasterParagraph.length },
+    });
     setTimeout(() => setCopied(false), 2000);
   };
 

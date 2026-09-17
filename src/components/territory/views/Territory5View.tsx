@@ -18,7 +18,7 @@ import {
 
 export function Territory5View() {
   const data = TERRITORIES_DATA['territorio-5'];
-  const { progress, areCreditsUnlocked, saveTerritoryProgress, registerDiscoveredItems } = useProgression();
+  const { progress, areCreditsUnlocked, saveTerritoryProgress, registerDiscoveredItems, trackInteraction } = useProgression();
 
   const visitedTributaries = progress.visitedTributaries || [];
   const allTributaryKeys = Object.keys(TRIBUTARIES_DATA);
@@ -33,8 +33,12 @@ export function Territory5View() {
         { allVisited: true },
         data.journalPhrase
       );
+      trackInteraction({
+        eventName: 'territory_completed',
+        territoryId: 'territorio-5',
+      });
     }
-  }, [allVisited, progress.territoryStatus, saveTerritoryProgress, data.journalPhrase]);
+  }, [allVisited, progress.territoryStatus, saveTerritoryProgress, data.journalPhrase, trackInteraction]);
 
   // Registrar modalidades de colaboración y encuentro al revelar la convergencia
   React.useEffect(() => {

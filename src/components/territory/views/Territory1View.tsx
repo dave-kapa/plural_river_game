@@ -29,24 +29,39 @@ const DISC_MAP: Record<string, string> = {
 export function Territory1View() {
   const data = TERRITORIES_DATA['territorio-1'];
   const content = data.specificContent;
-  const { progress, saveTerritoryProgress, registerDiscoveredItems } = useProgression();
+  const { progress, saveTerritoryProgress, registerDiscoveredItems, trackInteraction } = useProgression();
 
   const isAlreadyCompleted = progress.territoryStatus['territorio-1'] === 'completed';
+  const t1Interactions = progress.territoryInteractions['territorio-1'] || {};
 
   // Paso 1: Selección de disciplinas para construir la definición
   const [selectedDisciplines, setSelectedDisciplines] = useState<string[]>(
-    isAlreadyCompleted ? content.definitionDisciplines : []
+    isAlreadyCompleted
+      ? content.definitionDisciplines
+      : (t1Interactions.selectedDisciplines || [])
   );
-  const [definitionBuilt, setDefinitionBuilt] = useState<boolean>(isAlreadyCompleted);
+  const [definitionBuilt, setDefinitionBuilt] = useState<boolean>(
+    isAlreadyCompleted || !!t1Interactions.definitionBuilt
+  );
 
-  // Paso 2: Lentes explorados
-  const [activeLensId, setActiveLensId] = useState<string>('lens-behavior');
+  // Paso 2: Lentes explorados (Honest State Restoration)
+  const initialExploredLenses = t1Interactions.exploredLenses && t1Interactions.exploredLenses.length > 0
+    ? t1Interactions.exploredLenses
+    : (isAlreadyCompleted
+        ? content.fourLenses.filter((l: any) => progress.discoveredItems.includes(`t1:lens:${l.id}`)).map((l: any) => l.id)
+        : ['lens-behavior']);
+
+  const [activeLensId, setActiveLensId] = useState<string>(
+    initialExploredLenses[0] || 'lens-behavior'
+  );
   const [exploredLenses, setExploredLenses] = useState<string[]>(
-    isAlreadyCompleted ? content.fourLenses.map((l: any) => l.id) : ['lens-behavior']
+    initialExploredLenses.length > 0 ? initialExploredLenses : ['lens-behavior']
   );
 
   // Paso 3: Tarjetas de "lo que gamificación no es" descartadas
-  const [discardedNot, setDiscardedNot] = useState<string[]>([]);
+  const [discardedNot, setDiscardedNot] = useState<string[]>(
+    t1Interactions.discardedNot || []
+  );
 
   // Registrar lente inicial al montar
   React.useEffect(() => {
@@ -61,8 +76,15 @@ export function Territory1View() {
       : selectedDisciplines.filter((d) => d !== disc);
     setSelectedDisciplines(next);
 
-    if (isAdding && DISC_MAP[disc]) {
-      await registerDiscoveredItems(DISC_MAP[disc]);
+    if (isAdding) {
+      if (DISC_MAP[disc]) {
+        await registerDiscoveredItems(DISC_MAP[disc]);
+      }
+      await trackInteraction({
+        eventName: 'discipline_selected',
+        territoryId: 'territorio-1',
+        targetId: disc,
+      });
     }
   };
 
@@ -72,15 +94,23 @@ export function Territory1View() {
     if (!canBuildDefinition) return;
     setDefinitionBuilt(true);
     await registerDiscoveredItems('t1:definition:built');
+    await trackInteraction({
+      eventName: 'definition_built',
+      territoryId: 'territorio-1',
+    });
 
     // Progreso esencial: definición construida Y al menos 3 lentes
     if (exploredLenses.length >= 3 && !isAlreadyCompleted) {
       await saveTerritoryProgress(
         'territorio-1',
         'completed',
-        { definitionBuilt: true, exploredLenses },
+        { definitionBuilt: true, selectedDisciplines, exploredLenses, discardedNot },
         data.journalPhrase
       );
+      await trackInteraction({
+        eventName: 'territory_completed',
+        territoryId: 'territorio-1',
+      });
     }
   };
 
@@ -89,15 +119,24 @@ export function Territory1View() {
     const nextExplored = Array.from(new Set([...exploredLenses, lensId]));
     setExploredLenses(nextExplored);
     await registerDiscoveredItems(`t1:lens:${lensId}`);
+    await trackInteraction({
+      eventName: 'lens_explored',
+      territoryId: 'territorio-1',
+      targetId: lensId,
+    });
 
     // Si ya se construyó la definición y se alcanzan 3 o más lentes, marcar completado
     if (definitionBuilt && nextExplored.length >= 3 && !isAlreadyCompleted) {
       await saveTerritoryProgress(
         'territorio-1',
         'completed',
-        { definitionBuilt: true, exploredLenses: nextExplored },
+        { definitionBuilt: true, selectedDisciplines, exploredLenses: nextExplored, discardedNot },
         data.journalPhrase
       );
+      await trackInteraction({
+        eventName: 'territory_completed',
+        territoryId: 'territorio-1',
+      });
     }
   };
 
@@ -105,10 +144,18 @@ export function Territory1View() {
 
   const handleToggleDiscard = async (item: string) => {
     const isCurrentlyDiscarded = discardedNot.includes(item);
-    setDiscardedNot((prev) =>
-      isCurrentlyDiscarded ? prev.filter((i) => i !== item) : [...prev, item]
-    );
+    const nextDiscarded = isCurrentlyDiscarded
+      ? discardedNot.filter((i) => i !== item)
+      : [...discardedNot, item];
+    setDiscardedNot(nextDiscarded);
+
     if (!isCurrentlyDiscarded) {
+      await trackInteraction({
+        eventName: 'false_route_discarded',
+        territoryId: 'territorio-1',
+        targetId: item,
+      });
+
       if (item.toLowerCase().includes('puntos')) {
         await registerDiscoveredItems('t1:discard:points');
       } else if (item.toLowerCase().includes('manipular')) {

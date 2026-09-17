@@ -42,6 +42,17 @@ export const INITIAL_PROGRESS: TraversalProgress = {
   updatedAt: new Date().toISOString(),
 };
 
+export interface InteractionEvent {
+  id?: string;
+  userId?: string;
+  eventName: string;
+  territoryId?: string;
+  targetId?: string;
+  sessionId?: string;
+  metadata?: Record<string, unknown>;
+  occurredAt: string;
+}
+
 export interface ProgressionRepository {
   getProgress(): Promise<TraversalProgress>;
   saveTerritoryProgress(
@@ -54,6 +65,8 @@ export interface ProgressionRepository {
   markTributaryVisited(tributaryId: string): Promise<TraversalProgress>;
   saveJournalPhrase(territoryId: string, phrase: string): Promise<TraversalProgress>;
   registerDiscoveredItems(itemIds: string[]): Promise<TraversalProgress>;
+  recordInteractionEvent(event: InteractionEvent): Promise<void>;
+  getInteractionEvents(limit?: number): Promise<InteractionEvent[]>;
   setLastVisited(route: string): Promise<void>;
   resetProgress(): Promise<TraversalProgress>;
 }
