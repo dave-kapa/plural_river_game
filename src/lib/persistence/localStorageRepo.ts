@@ -11,6 +11,8 @@ const EVENTS_STORAGE_KEY = 'plural_gameful_river_events_v1';
 const MAX_LOCAL_EVENTS = 100;
 
 export class LocalStorageProgressionRepository implements ProgressionRepository {
+  private queue: Promise<any> = Promise.resolve();
+
   private getStorage(): Storage | null {
     if (typeof window !== 'undefined' && window.localStorage) {
       return window.localStorage;
@@ -18,7 +20,7 @@ export class LocalStorageProgressionRepository implements ProgressionRepository 
     return null;
   }
 
-  async getProgress(): Promise<TraversalProgress> {
+  private readRaw(): TraversalProgress {
     const storage = this.getStorage();
     if (!storage) {
       return { ...INITIAL_PROGRESS };
@@ -47,15 +49,27 @@ export class LocalStorageProgressionRepository implements ProgressionRepository 
     }
   }
 
+  private enqueue<T>(op: () => T | Promise<T>): Promise<T> {
+    const next = this.queue.then(() => op());
+    this.queue = next.catch(() => {});
+    return next;
+  }
+
+  async getProgress(): Promise<TraversalProgress> {
+    return this.enqueue(() => this.readRaw());
+  }
+
   async markEntryCompleted(): Promise<TraversalProgress> {
-    const current = await this.getProgress();
-    const updated: TraversalProgress = reconcileProgress({
-      ...current,
-      entryCompleted: true,
-      lastVisitedRoute: '/mapa',
+    return this.enqueue(() => {
+      const current = this.readRaw();
+      const updated: TraversalProgress = reconcileProgress({
+        ...current,
+        entryCompleted: true,
+        lastVisitedRoute: '/mapa',
+      });
+      this.persist(updated);
+      return updated;
     });
-    this.persist(updated);
-    return updated;
   }
 
   async saveTerritoryProgress(
@@ -64,85 +78,93 @@ export class LocalStorageProgressionRepository implements ProgressionRepository 
     interactionState?: Record<string, any>,
     journalPhrase?: string
   ): Promise<TraversalProgress> {
-    const current = await this.getProgress();
+    return this.enqueue(() => {
+      const current = this.readRaw();
 
-    const nextStatuses = { ...current.territoryStatus };
-    if (nextStatuses[territoryId] !== 'completed' || status === 'completed') {
-      nextStatuses[territoryId] = status;
-    }
+      const nextStatuses = { ...current.territoryStatus };
+      if (nextStatuses[territoryId] !== 'completed' || status === 'completed') {
+        nextStatuses[territoryId] = status;
+      }
 
-    const nextInteractions = { ...current.territoryInteractions };
-    if (interactionState) {
-      nextInteractions[territoryId] = {
-        ...(nextInteractions[territoryId] || {}),
-        ...interactionState,
-      };
-    }
+      const nextInteractions = { ...current.territoryInteractions };
+      if (interactionState) {
+        nextInteractions[territoryId] = {
+          ...(nextInteractions[territoryId] || {}),
+          ...interactionState,
+        };
+      }
 
-    const nextJournal = { ...current.journalEntries };
-    if (journalPhrase) {
-      nextJournal[territoryId] = journalPhrase;
-    }
+      const nextJournal = { ...current.journalEntries };
+      if (journalPhrase) {
+        nextJournal[territoryId] = journalPhrase;
+      }
 
-    const updated: TraversalProgress = reconcileProgress({
-      ...current,
-      territoryStatus: nextStatuses,
-      territoryInteractions: nextInteractions,
-      journalEntries: nextJournal,
-      lastVisitedRoute: `/territorios/${territoryId}`,
+      const updated: TraversalProgress = reconcileProgress({
+        ...current,
+        territoryStatus: nextStatuses,
+        territoryInteractions: nextInteractions,
+        journalEntries: nextJournal,
+        lastVisitedRoute: `/territorios/${territoryId}`,
+      });
+
+      this.persist(updated);
+      return updated;
     });
-
-    this.persist(updated);
-    return updated;
   }
 
   async saveJournalPhrase(territoryId: string, phrase: string): Promise<TraversalProgress> {
-    const current = await this.getProgress();
-    const updated: TraversalProgress = reconcileProgress({
-      ...current,
-      journalEntries: {
-        ...current.journalEntries,
-        [territoryId]: phrase,
-      },
+    return this.enqueue(() => {
+      const current = this.readRaw();
+      const updated: TraversalProgress = reconcileProgress({
+        ...current,
+        journalEntries: {
+          ...current.journalEntries,
+          [territoryId]: phrase,
+        },
+      });
+      this.persist(updated);
+      return updated;
     });
-    this.persist(updated);
-    return updated;
   }
 
   async markTributaryVisited(tributaryId: string): Promise<TraversalProgress> {
-    const current = await this.getProgress();
-    const set = new Set(current.visitedTributaries);
-    set.add(tributaryId);
+    return this.enqueue(() => {
+      const current = this.readRaw();
+      const set = new Set(current.visitedTributaries);
+      set.add(tributaryId);
 
-    const updated: TraversalProgress = reconcileProgress({
-      ...current,
-      visitedTributaries: Array.from(set),
-      lastVisitedRoute: `/afluentes/${tributaryId}`,
+      const updated: TraversalProgress = reconcileProgress({
+        ...current,
+        visitedTributaries: Array.from(set),
+        lastVisitedRoute: `/afluentes/${tributaryId}`,
+      });
+
+      this.persist(updated);
+      return updated;
     });
-
-    this.persist(updated);
-    return updated;
   }
 
   async registerDiscoveredItems(itemIds: string[]): Promise<TraversalProgress> {
-    const current = await this.getProgress();
-    const set = new Set(current.discoveredItems || []);
-    let added = false;
-    for (const id of itemIds) {
-      if (!set.has(id)) {
-        set.add(id);
-        added = true;
+    return this.enqueue(() => {
+      const current = this.readRaw();
+      const set = new Set(current.discoveredItems || []);
+      let added = false;
+      for (const id of itemIds) {
+        if (!set.has(id)) {
+          set.add(id);
+          added = true;
+        }
       }
-    }
-    if (!added) {
-      return current;
-    }
-    const updated = reconcileProgress({
-      ...current,
-      discoveredItems: Array.from(set),
+      if (!added) {
+        return current;
+      }
+      const updated = reconcileProgress({
+        ...current,
+        discoveredItems: Array.from(set),
+      });
+      this.persist(updated);
+      return updated;
     });
-    this.persist(updated);
-    return updated;
   }
 
   async recordInteractionEvent(event: import('./types').InteractionEvent): Promise<void> {
@@ -176,17 +198,21 @@ export class LocalStorageProgressionRepository implements ProgressionRepository 
   }
 
   async setLastVisited(route: string): Promise<void> {
-    const current = await this.getProgress();
-    current.lastVisitedRoute = route;
-    this.persist(current);
+    return this.enqueue(() => {
+      const current = this.readRaw();
+      current.lastVisitedRoute = route;
+      this.persist(current);
+    });
   }
 
   async resetProgress(): Promise<TraversalProgress> {
-    const storage = this.getStorage();
-    if (storage) {
-      storage.removeItem(STORAGE_KEY);
-      storage.removeItem(EVENTS_STORAGE_KEY);
-    }
-    return { ...INITIAL_PROGRESS };
+    return this.enqueue(() => {
+      const storage = this.getStorage();
+      if (storage) {
+        storage.removeItem(STORAGE_KEY);
+        storage.removeItem(EVENTS_STORAGE_KEY);
+      }
+      return { ...INITIAL_PROGRESS };
+    });
   }
 }

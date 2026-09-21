@@ -101,20 +101,30 @@ describe('Repositorio de Persistencia (LocalStorageProgressionRepository)', () =
     expect(reloaded.journalEntries['territorio-2']).toBe(phraseT2);
   });
 
-  it('registra la visita a los afluentes de forma acumulativa y sin duplicados', async () => {
+  it('registra la visita a los afluentes y solo abre créditos dentro de una travesía legítimamente habilitada', async () => {
+    // 1. En una travesía nueva (sin T4 completado), registrar afluentes no abre créditos
     await repo.markTributaryVisited('evaluation-as-experience');
     await repo.markTributaryVisited('from-intervention-to-product');
     await repo.markTributaryVisited('evaluation-as-experience');
 
-    const progress = await repo.getProgress();
+    let progress = await repo.getProgress();
     expect(progress.visitedTributaries).toHaveLength(2);
     expect(progress.visitedTributaries).toContain('evaluation-as-experience');
     expect(progress.visitedTributaries).toContain('from-intervention-to-product');
     expect(progress.creditsUnlocked).toBe(false);
 
-    const finalStep = await repo.markTributaryVisited('new-horizons');
-    expect(finalStep.visitedTributaries).toHaveLength(3);
-    expect(finalStep.creditsUnlocked).toBe(true);
+    await repo.markTributaryVisited('new-horizons');
+    progress = await repo.getProgress();
+    expect(progress.visitedTributaries).toHaveLength(3);
+    // Sin T4 completado, no se abre el epílogo
+    expect(progress.creditsUnlocked).toBe(false);
+
+    // 2. Al habilitar legítimamente la travesía (T4 completado y T5 habilitado), se abren los créditos
+    await repo.saveTerritoryProgress('territorio-4', 'completed');
+    const legitProgress = await repo.getProgress();
+    expect(legitProgress.territoryStatus['territorio-4']).toBe('completed');
+    expect(legitProgress.territoryStatus['territorio-5']).toBe('completed');
+    expect(legitProgress.creditsUnlocked).toBe(true);
   });
 
   it('reinicia completamente la travesía devolviendo el estado y la Bitácora a los valores iniciales', async () => {

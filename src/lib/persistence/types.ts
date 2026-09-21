@@ -12,6 +12,7 @@ export interface TraversalProgress {
   globalDiscoveryPercent: number;
   fullDiscoveryReached: boolean;
   lastVisitedRoute: string;
+  explorerName?: string;
   updatedAt: string;
 }
 
@@ -39,6 +40,7 @@ export const INITIAL_PROGRESS: TraversalProgress = {
   globalDiscoveryPercent: 0,
   fullDiscoveryReached: false,
   lastVisitedRoute: '/',
+  explorerName: '',
   updatedAt: new Date().toISOString(),
 };
 

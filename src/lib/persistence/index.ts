@@ -10,6 +10,11 @@ export function getProgressionRepository(): ProgressionRepository {
     return repositoryInstance;
   }
 
+  if (process.env.NEXT_PUBLIC_FORCE_LOCAL_STORAGE === 'true') {
+    repositoryInstance = new LocalStorageProgressionRepository();
+    return repositoryInstance;
+  }
+
   if (isSupabaseConfigured()) {
     const client = getSupabaseClient();
     if (client) {

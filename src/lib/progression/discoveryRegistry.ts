@@ -28,12 +28,12 @@ export type TerritoryId = (typeof ALL_TERRITORY_IDS)[number];
 export const DISCOVERY_REGISTRY: Record<TerritoryId, DiscoverableItem[]> = {
   'territorio-1': [
     // 6 disciplinas que articulan la definición
-    { id: 't1:disc:diseno-de-juegos', territoryId: 'territorio-1', label: 'Diseño de juegos' },
     { id: 't1:disc:ciencias-del-comportamiento', territoryId: 'territorio-1', label: 'Ciencias del comportamiento' },
-    { id: 't1:disc:psicologia-cognitiva-social', territoryId: 'territorio-1', label: 'Psicología cognitiva y social' },
-    { id: 't1:disc:narrativa-transmedia', territoryId: 'territorio-1', label: 'Narrativa transmedia' },
-    { id: 't1:disc:diseno-de-sistemas', territoryId: 'territorio-1', label: 'Diseño de sistemas' },
-    { id: 't1:disc:tecnologia-creatividad', territoryId: 'territorio-1', label: 'Tecnología y creatividad' },
+    { id: 't1:disc:psicologia', territoryId: 'territorio-1', label: 'Psicología' },
+    { id: 't1:disc:neurociencia-cognitiva', territoryId: 'territorio-1', label: 'Neurociencia cognitiva' },
+    { id: 't1:disc:experiencia-de-usuario', territoryId: 'territorio-1', label: 'Experiencia de usuario' },
+    { id: 't1:disc:narrativa', territoryId: 'territorio-1', label: 'Narrativa' },
+    { id: 't1:disc:diseno-de-juegos', territoryId: 'territorio-1', label: 'Diseño de juegos' },
     // Definición canónica articulada
     { id: 't1:definition:built', territoryId: 'territorio-1', label: 'Definición integrada articulada' },
     // 4 lentes de diseño
@@ -155,6 +155,20 @@ export const TOTAL_ITEMS_PER_TERRITORY: Record<TerritoryId, number> = {
   'territorio-5': DISCOVERY_REGISTRY['territorio-5'].length,
 };
 
+export const LEGACY_DISCOVERY_MAP: Record<string, string> = {
+  't1:disc:psicologia-cognitiva-social': 't1:disc:psicologia',
+  't1:disc:narrativa-transmedia': 't1:disc:narrativa',
+};
+
+export function normalizeDiscoveredItems(items: string[] = []): string[] {
+  const result = new Set<string>();
+  for (const id of items) {
+    const mapped = LEGACY_DISCOVERY_MAP[id] || id;
+    result.add(mapped);
+  }
+  return Array.from(result);
+}
+
 export function computeTerritoryDiscoveryPercent(
   territoryId: TerritoryId,
   discoveredItems: string[] = []
@@ -162,7 +176,8 @@ export function computeTerritoryDiscoveryPercent(
   const items = DISCOVERY_REGISTRY[territoryId];
   if (!items || items.length === 0) return 0;
 
-  const discoveredSet = new Set(discoveredItems);
+  const normalized = normalizeDiscoveredItems(discoveredItems);
+  const discoveredSet = new Set(normalized);
   const foundCount = items.filter((item) => discoveredSet.has(item.id)).length;
 
   const percent = Math.round((foundCount / items.length) * 100);

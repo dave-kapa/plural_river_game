@@ -9,6 +9,53 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        // Superficies de lectura editoriales (crema cálido opaco de alto contraste)
+        parchment: {
+          50: "#fdfbf7",
+          100: "#faf6ee",
+          200: "#f3ede0",
+          300: "#e8dec9",
+          400: "#d5c7ab",
+          ink: "#14241d",
+          muted: "#3d5248",
+        },
+        forest: {
+          950: "#071510",
+          900: "#0b2019",
+          850: "#0e2820",
+          800: "#143d32",
+          700: "#1d5243",
+        },
+        jade: {
+          600: "#1a5c4a",
+          500: "#2d8a6e",
+          400: "#3db892",
+          300: "#5fcdaa",
+          200: "#9ee6cf",
+        },
+        water: {
+          950: "#072028",
+          900: "#0c3542",
+          700: "#15586c",
+          500: "#1e88a8",
+          400: "#26b4d6",
+          300: "#5ce1e6",
+          100: "#e0f7fa",
+        },
+        solar: {
+          600: "#b88326",
+          500: "#d49b35",
+          400: "#e5a83b",
+          300: "#f4c05a",
+          100: "#fef3d6",
+        },
+        coral: {
+          600: "#be472f",
+          500: "#d65a40",
+          400: "#e06d53",
+          300: "#ed8d76",
+          100: "#fde8e3",
+        },
         canopy: {
           950: "#0b1510",
           900: "#10231b",
@@ -57,10 +104,15 @@ const config: Config = {
           "0%, 100%": { opacity: "1" },
           "50%": { opacity: "0.85" },
         },
+        shimmer: {
+          "0%": { transform: "translateX(-100%)" },
+          "100%": { transform: "translateX(200%)" },
+        },
       },
       animation: {
         "river-flow": "flow 6s ease-in-out infinite",
         "pulse-subtle": "pulseSubtle 3s ease-in-out infinite",
+        shimmer: "shimmer 2.5s infinite",
       },
     },
   },

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { LocalStorageProgressionRepository } from '../src/lib/persistence/localStorageRepo';
 import { SupabaseProgressionRepository } from '../src/lib/persistence/supabaseRepo';
-import { InteractionEvent } from '../src/lib/persistence/types';
+import { InteractionEvent, INITIAL_PROGRESS } from '../src/lib/persistence/types';
 import { reconcileProgress } from '../src/lib/progression/unlockRules';
 
 class MockStorage implements Storage {
@@ -95,7 +95,7 @@ describe('Traza de Interacción, Estado Autoritativo y Restauración Honesta', (
   });
 
   describe('2. Detección Explícita de Errores de Supabase y Fallback', () => {
-    it('activa el fallback a localStorage cuando Supabase reporta un error explícito', async () => {
+    it('activa el fallback a localStorage cuando Supabase reporta un error explícito en auth o db', async () => {
       // Mock de Supabase Client con error
       const mockSupabaseClient: any = {
         auth: {
@@ -128,6 +128,95 @@ describe('Traza de Interacción, Estado Autoritativo y Restauración Honesta', (
       const events = await supabaseRepo.getInteractionEvents();
       expect(events.length).toBe(1);
       expect(events[0].eventName).toBe('test_event_error_recovery');
+    });
+
+    it('maneja objetos { error } en saveTerritoryProgress, saveJournalPhrase y markTributaryVisited sin lanzar excepciones', async () => {
+      const mockSupabaseClient: any = {
+        auth: {
+          getSession: async () => ({ data: { session: { user: { id: 'user-err-test' } } }, error: null }),
+          signInAnonymously: async () => ({ data: { user: { id: 'user-err-test' } }, error: null }),
+        },
+        from: () => ({
+          select: () => ({
+            eq: () => ({
+              maybeSingle: async () => ({ data: null, error: { message: 'Read timeout' } }),
+            }),
+          }),
+          upsert: async () => ({ error: { message: 'Database write rejection' } }),
+          insert: async () => ({ error: { message: 'Insert constraint error' } }),
+          delete: () => ({ eq: async () => ({ error: { message: 'Delete error' } }) }),
+        }),
+      };
+
+      const supabaseRepo = new SupabaseProgressionRepository(mockSupabaseClient);
+
+      // markEntryCompleted fallback
+      await supabaseRepo.markEntryCompleted();
+
+      // saveTerritoryProgress fallback
+      const tProgress = await supabaseRepo.saveTerritoryProgress('territorio-1', 'completed', { lenses: ['l1'] });
+      expect(tProgress.territoryStatus['territorio-1']).toBe('completed');
+
+      // saveJournalPhrase fallback
+      const jProgress = await supabaseRepo.saveJournalPhrase('territorio-1', 'Frase de prueba');
+      expect(jProgress.journalEntries['territorio-1']).toBe('Frase de prueba');
+
+      // markTributaryVisited fallback
+      const tribProgress = await supabaseRepo.markTributaryVisited('afluente-1');
+      expect(tribProgress.visitedTributaries).toContain('afluente-1');
+
+      // registerDiscoveredItems fallback
+      const discProgress = await supabaseRepo.registerDiscoveredItems(['t1:lens:test']);
+      expect(discProgress.discoveredItems).toContain('t1:lens:test');
+
+      // resetProgress fallback
+      const reset = await supabaseRepo.resetProgress();
+      expect(reset.entryCompleted).toBe(false);
+    });
+
+    it('cuando Supabase responde exitosamente con { data, error: null }, actualiza de forma autoritativa', async () => {
+      const dbStore: Record<string, any> = {};
+      const mockSupabaseClient: any = {
+        auth: {
+          getSession: async () => ({ data: { session: { user: { id: 'user-success-test' } } }, error: null }),
+          signInAnonymously: async () => ({ data: { user: { id: 'user-success-test' } }, error: null }),
+        },
+        from: (table: string) => ({
+          select: () => ({
+            eq: () => ({
+              maybeSingle: async () => ({ data: dbStore[table], error: null }),
+              order: () => ({
+                limit: async () => ({ data: dbStore['events'] || [], error: null }),
+              }),
+            }),
+          }),
+          upsert: async (row: any) => {
+            dbStore[table] = { ...(dbStore[table] || {}), ...row };
+            return { error: null };
+          },
+          insert: async (row: any) => {
+            if (!dbStore['events']) dbStore['events'] = [];
+            dbStore['events'].push(row);
+            return { error: null };
+          },
+        }),
+      };
+
+      const supabaseRepo = new SupabaseProgressionRepository(mockSupabaseClient);
+
+      await supabaseRepo.markEntryCompleted();
+      const progress = await supabaseRepo.getProgress();
+      expect(progress.entryCompleted).toBe(true);
+
+      await supabaseRepo.recordInteractionEvent({
+        eventName: 'force_discovered',
+        targetId: 'force-scalability',
+        occurredAt: new Date().toISOString(),
+      });
+
+      const events = await supabaseRepo.getInteractionEvents();
+      expect(events.length).toBe(1);
+      expect(events[0].eventName).toBe('force_discovered');
     });
   });
 
@@ -194,6 +283,7 @@ describe('Traza de Interacción, Estado Autoritativo y Restauración Honesta', (
 
       // Comprobar que T1 tiene porcentaje < 100% a pesar de estar completed
       const progress = reconcileProgress({
+        ...INITIAL_PROGRESS,
         entryCompleted: true,
         territoryStatus: { 'territorio-1': 'completed' },
         territoryInteractions: { 'territorio-1': { exploredLenses } },
@@ -237,6 +327,7 @@ describe('Traza de Interacción, Estado Autoritativo y Restauración Honesta', (
       expect(restoredZones).toEqual(exploredZones);
 
       const progress = reconcileProgress({
+        ...INITIAL_PROGRESS,
         entryCompleted: true,
         territoryStatus: { 'territorio-3': 'completed' },
         territoryInteractions: { 'territorio-3': { exploredZones } },
@@ -276,6 +367,7 @@ describe('Traza de Interacción, Estado Autoritativo y Restauración Honesta', (
       expect(restoredSpaces).not.toContain('space-systemic-impact');
 
       const progress = reconcileProgress({
+        ...INITIAL_PROGRESS,
         entryCompleted: true,
         territoryStatus: { 'territorio-4': 'completed' },
         territoryInteractions: { 'territorio-4': { exploredSpaces } },

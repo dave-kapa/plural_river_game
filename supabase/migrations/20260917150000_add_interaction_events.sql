@@ -1,5 +1,13 @@
+-- ESTADO: PREPARADA — PENDIENTE DE APLICACIÓN REMOTA
 -- Migración incremental para traza de eventos de interacción
--- Proyecto: plural_river_game (kfuaxtjfdvctatgsaubs)
+-- Proyecto destino: plural_river_game (kfuaxtjfdvctatgsaubs)
+--
+-- CARACTERÍSTICAS Y GARANTÍAS DE SEGURIDAD:
+-- 1. Incremental: no contiene sentencias DROP TABLE, DROP COLUMN ni TRUNCATE.
+-- 2. No borra datos: preserva intactas las filas existentes en user_progress y user_traversal_state.
+-- 3. Ejecución segura post-migración inicial (20260917000000_create_traversal_progress.sql).
+-- 4. No recrea tablas existentes: usa ADD COLUMN IF NOT EXISTS y CREATE TABLE IF NOT EXISTS.
+-- 5. RLS y aislamiento de usuarios: habilita RLS y define políticas idempotentes con auth.uid() = user_id.
 
 -- 1. Asegurar columna discovered_items en user_traversal_state si no existiera
 ALTER TABLE public.user_traversal_state

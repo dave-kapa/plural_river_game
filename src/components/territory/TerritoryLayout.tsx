@@ -3,7 +3,9 @@
 import React from 'react';
 import { TerritoryData } from '@/data/territories';
 import { TerritoryTransition } from './TerritoryTransition';
-import { Compass, Sparkles } from 'lucide-react';
+import { useProgression } from '@/lib/progression/ProgressionContext';
+import { formatQuotation } from '@/lib/explorer/quotePersonalizer';
+import { Compass, Sparkles, User } from 'lucide-react';
 
 interface TerritoryLayoutProps {
   territory: TerritoryData;
@@ -20,6 +22,8 @@ export function TerritoryLayout({
   nextLabel = 'Siguiente Territorio',
   children,
 }: TerritoryLayoutProps) {
+  const { explorerName } = useProgression();
+
   return (
     <article className="max-w-4xl mx-auto px-4 sm:px-6 py-10 md:py-16 space-y-12">
       {/* Cabecera del Territorio */}
@@ -32,6 +36,7 @@ export function TerritoryLayout({
             </span>
           </div>
           <span className="text-xs font-mono text-earth-300">
+            {explorerName ? `Explorador: ${explorerName} • ` : ''}
             {territory.functionStatement}
           </span>
         </div>
@@ -45,7 +50,7 @@ export function TerritoryLayout({
             Pregunta Funcional:
           </span>
           <p className="text-lg md:text-xl font-serif italic text-earth-100">
-            “{territory.functionalQuestion}”
+            {formatQuotation(territory.functionalQuestion, explorerName)}
           </p>
         </div>
 

@@ -8,7 +8,8 @@ import {
   ProgressionRepository,
 } from '../persistence/types';
 import { getProgressionRepository } from '../persistence';
-import { ALL_TRIBUTARIES } from './unlockRules';
+import { ALL_TRIBUTARIES, areCreditsUnlocked as checkCreditsUnlocked } from './unlockRules';
+import { getStoredExplorerName, saveStoredExplorerName } from '../explorer/explorerStorage';
 
 interface ProgressionContextValue {
   progress: TraversalProgress;
@@ -35,6 +36,8 @@ interface ProgressionContextValue {
   isJournalOpen: boolean;
   openJournal: () => void;
   closeJournal: () => void;
+  explorerName: string;
+  setExplorerName: (name: string) => void;
 }
 
 const ProgressionContext = createContext<ProgressionContextValue | null>(null);
@@ -43,6 +46,7 @@ export function ProgressionProvider({ children }: { children: React.ReactNode })
   const [progress, setProgress] = useState<TraversalProgress>(INITIAL_PROGRESS);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isJournalOpen, setIsJournalOpen] = useState<boolean>(false);
+  const [explorerName, setExplorerNameState] = useState<string>('');
   const repo = useMemo(() => getProgressionRepository(), []);
 
   useEffect(() => {
@@ -50,9 +54,17 @@ export function ProgressionProvider({ children }: { children: React.ReactNode })
 
     async function load() {
       try {
+        const storedName = getStoredExplorerName();
+        if (storedName && isMounted) {
+          setExplorerNameState(storedName);
+        }
+
         const data = await repo.getProgress();
         if (isMounted) {
-          setProgress(data);
+          setProgress({
+            ...data,
+            explorerName: storedName || data.explorerName || '',
+          });
           setIsLoading(false);
         }
       } catch (err) {
@@ -68,6 +80,16 @@ export function ProgressionProvider({ children }: { children: React.ReactNode })
       isMounted = false;
     };
   }, [repo]);
+
+  const setExplorerName = useCallback((name: string) => {
+    const trimmed = name.trim();
+    saveStoredExplorerName(trimmed);
+    setExplorerNameState(trimmed);
+    setProgress((prev) => ({
+      ...prev,
+      explorerName: trimmed,
+    }));
+  }, []);
 
   const saveTerritoryProgress = useCallback(
     async (
@@ -145,10 +167,9 @@ export function ProgressionProvider({ children }: { children: React.ReactNode })
 
   const areCreditsUnlocked = useMemo(() => {
     return (
-      progress.creditsUnlocked ||
-      ALL_TRIBUTARIES.every((t) => progress.visitedTributaries.includes(t))
+      checkCreditsUnlocked(progress.visitedTributaries || [], progress.territoryStatus || {})
     );
-  }, [progress.creditsUnlocked, progress.visitedTributaries]);
+  }, [progress.visitedTributaries, progress.territoryStatus]);
 
   const registerDiscoveredItems = useCallback(
     async (itemIds: string | string[]) => {
@@ -218,6 +239,8 @@ export function ProgressionProvider({ children }: { children: React.ReactNode })
     isJournalOpen,
     openJournal,
     closeJournal,
+    explorerName: explorerName || progress.explorerName || '',
+    setExplorerName,
   };
 
   return (

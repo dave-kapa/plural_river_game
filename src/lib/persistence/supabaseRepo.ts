@@ -103,12 +103,15 @@ export class SupabaseProgressionRepository implements ProgressionRepository {
     }
 
     try {
-      const { error } = await this.client.from('user_traversal_state').upsert({
-        user_id: userId,
-        entry_completed: true,
-        last_visited_route: '/mapa',
-        updated_at: new Date().toISOString(),
-      });
+      const { error } = await this.client.from('user_traversal_state').upsert(
+        {
+          user_id: userId,
+          entry_completed: true,
+          last_visited_route: '/mapa',
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'user_id' }
+      );
 
       if (error) {
         console.warn('Error in markEntryCompleted on Supabase:', error.message);
@@ -130,24 +133,30 @@ export class SupabaseProgressionRepository implements ProgressionRepository {
     interactionState?: Record<string, any>,
     journalPhrase?: string
   ): Promise<TraversalProgress> {
+    // Primero aseguramos la persistencia en el repositorio local de respaldo
+    await this.fallbackRepo.saveTerritoryProgress(territoryId, status, interactionState, journalPhrase);
+
     const userId = await this.getUserId();
     if (!userId) {
-      return this.fallbackRepo.saveTerritoryProgress(territoryId, status, interactionState, journalPhrase);
+      return this.fallbackRepo.getProgress();
     }
 
     try {
-      const { error: progressError } = await this.client.from('user_progress').upsert({
-        user_id: userId,
-        territory_id: territoryId,
-        status,
-        interaction_state: interactionState ?? {},
-        completed_at: status === 'completed' ? new Date().toISOString() : null,
-        updated_at: new Date().toISOString(),
-      });
+      const { error: progressError } = await this.client.from('user_progress').upsert(
+        {
+          user_id: userId,
+          territory_id: territoryId,
+          status,
+          interaction_state: interactionState ?? {},
+          completed_at: status === 'completed' ? new Date().toISOString() : null,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'user_id, territory_id' }
+      );
 
       if (progressError) {
         console.warn('Error saving user_progress in Supabase:', progressError.message);
-        return this.fallbackRepo.saveTerritoryProgress(territoryId, status, interactionState, journalPhrase);
+        return this.fallbackRepo.getProgress();
       }
 
       const current = await this.getProgress();
@@ -156,90 +165,102 @@ export class SupabaseProgressionRepository implements ProgressionRepository {
         nextJournal[territoryId] = journalPhrase;
       }
 
-      const { error: stateError } = await this.client.from('user_traversal_state').upsert({
-        user_id: userId,
-        journal_entries: nextJournal,
-        last_visited_route: `/territorios/${territoryId}`,
-        updated_at: new Date().toISOString(),
-      });
+      const { error: stateError } = await this.client.from('user_traversal_state').upsert(
+        {
+          user_id: userId,
+          journal_entries: nextJournal,
+          last_visited_route: `/territorios/${territoryId}`,
+          discovered_items: current.discoveredItems || [],
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'user_id' }
+      );
 
       if (stateError) {
         console.warn('Error saving user_traversal_state in Supabase:', stateError.message);
-        return this.fallbackRepo.saveTerritoryProgress(territoryId, status, interactionState, journalPhrase);
+        return this.fallbackRepo.getProgress();
       }
 
-      // Synchronize fallback repository
-      await this.fallbackRepo.saveTerritoryProgress(territoryId, status, interactionState, journalPhrase);
       return this.getProgress();
     } catch (e) {
       console.error('Exception saving territory progress in Supabase:', e);
-      return this.fallbackRepo.saveTerritoryProgress(territoryId, status, interactionState, journalPhrase);
+      return this.fallbackRepo.getProgress();
     }
   }
 
   async saveJournalPhrase(territoryId: string, phrase: string): Promise<TraversalProgress> {
+    await this.fallbackRepo.saveJournalPhrase(territoryId, phrase);
+
     const userId = await this.getUserId();
     if (!userId) {
-      return this.fallbackRepo.saveJournalPhrase(territoryId, phrase);
+      return this.fallbackRepo.getProgress();
     }
 
     try {
       const current = await this.getProgress();
       const nextJournal = { ...current.journalEntries, [territoryId]: phrase };
 
-      const { error } = await this.client.from('user_traversal_state').upsert({
-        user_id: userId,
-        journal_entries: nextJournal,
-        updated_at: new Date().toISOString(),
-      });
+      const { error } = await this.client.from('user_traversal_state').upsert(
+        {
+          user_id: userId,
+          journal_entries: nextJournal,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'user_id' }
+      );
 
       if (error) {
         console.warn('Error saving journal phrase in Supabase:', error.message);
-        return this.fallbackRepo.saveJournalPhrase(territoryId, phrase);
+        return this.fallbackRepo.getProgress();
       }
 
-      await this.fallbackRepo.saveJournalPhrase(territoryId, phrase);
       return this.getProgress();
     } catch (e) {
       console.error('Exception saving journal phrase in Supabase:', e);
-      return this.fallbackRepo.saveJournalPhrase(territoryId, phrase);
+      return this.fallbackRepo.getProgress();
     }
   }
 
   async markTributaryVisited(tributaryId: string): Promise<TraversalProgress> {
+    await this.fallbackRepo.markTributaryVisited(tributaryId);
+
     const userId = await this.getUserId();
     if (!userId) {
-      return this.fallbackRepo.markTributaryVisited(tributaryId);
+      return this.fallbackRepo.getProgress();
     }
 
     try {
       const current = await this.getProgress();
       const updatedList = Array.from(new Set([...current.visitedTributaries, tributaryId]));
 
-      const { error } = await this.client.from('user_traversal_state').upsert({
-        user_id: userId,
-        visited_tributaries: updatedList,
-        last_visited_route: `/afluentes/${tributaryId}`,
-        updated_at: new Date().toISOString(),
-      });
+      const { error } = await this.client.from('user_traversal_state').upsert(
+        {
+          user_id: userId,
+          visited_tributaries: updatedList,
+          last_visited_route: `/afluentes/${tributaryId}`,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'user_id' }
+      );
 
       if (error) {
         console.warn('Error marking tributary visited in Supabase:', error.message);
-        return this.fallbackRepo.markTributaryVisited(tributaryId);
+        return this.fallbackRepo.getProgress();
       }
 
-      await this.fallbackRepo.markTributaryVisited(tributaryId);
       return this.getProgress();
     } catch (e) {
       console.error('Exception marking tributary visited in Supabase:', e);
-      return this.fallbackRepo.markTributaryVisited(tributaryId);
+      return this.fallbackRepo.getProgress();
     }
   }
 
   async registerDiscoveredItems(itemIds: string[]): Promise<TraversalProgress> {
+    await this.fallbackRepo.registerDiscoveredItems(itemIds);
+
     const userId = await this.getUserId();
     if (!userId) {
-      return this.fallbackRepo.registerDiscoveredItems(itemIds);
+      return this.fallbackRepo.getProgress();
     }
 
     try {
@@ -250,22 +271,24 @@ export class SupabaseProgressionRepository implements ProgressionRepository {
       }
       const updatedList = Array.from(set);
 
-      const { error } = await this.client.from('user_traversal_state').upsert({
-        user_id: userId,
-        discovered_items: updatedList,
-        updated_at: new Date().toISOString(),
-      });
+      const { error } = await this.client.from('user_traversal_state').upsert(
+        {
+          user_id: userId,
+          discovered_items: updatedList,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'user_id' }
+      );
 
       if (error) {
         console.warn('Error registering discovered items in Supabase:', error.message);
-        return this.fallbackRepo.registerDiscoveredItems(itemIds);
+        return this.fallbackRepo.getProgress();
       }
 
-      await this.fallbackRepo.registerDiscoveredItems(itemIds);
       return this.getProgress();
     } catch (e) {
       console.error('Exception registering discovered items in Supabase:', e);
-      return this.fallbackRepo.registerDiscoveredItems(itemIds);
+      return this.fallbackRepo.getProgress();
     }
   }
 

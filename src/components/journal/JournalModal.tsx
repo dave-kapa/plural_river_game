@@ -4,9 +4,10 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useProgression } from '@/lib/progression/ProgressionContext';
 import { OFFICIAL_JOURNAL_ENTRIES, MASTER_PRESENTATION_PARAGRAPH, MASTER_PRACTICAL_CONTINUATION } from '@/data/journal';
 import { BookMarked, X, Check, Copy, Sparkles, Feather } from 'lucide-react';
+import { formatQuotation } from '@/lib/explorer/quotePersonalizer';
 
 export function JournalModal() {
-  const { isJournalOpen, closeJournal, progress } = useProgression();
+  const { isJournalOpen, closeJournal, progress, explorerName } = useProgression();
   const [copied, setCopied] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
 
@@ -61,10 +62,10 @@ export function JournalModal() {
             </div>
             <div>
               <span className="text-[11px] font-mono uppercase tracking-widest text-editorial-accent">
-                Memoria de la Travesía
+                {explorerName ? `Cuaderno de Navegación de ${explorerName}` : 'Memoria de la Travesía'}
               </span>
               <h2 id="journal-modal-title" className="font-serif font-bold text-xl text-earth-50">
-                Bitácora Fluvial
+                {explorerName ? `Bitácora Fluvial • ${explorerName}` : 'Bitácora Fluvial'}
               </h2>
             </div>
           </div>
@@ -79,7 +80,8 @@ export function JournalModal() {
         </div>
 
         <p className="text-xs sm:text-sm text-earth-300 font-sans leading-relaxed">
-          Cada territorio explorado aporta una premisa nuclear a la Bitácora. Al completar la travesía, estas frases ensamblan el argumento institucional de Plural sobre la capacidad gameful.
+          {explorerName ? `Cada territorio explorado aporta una premisa nuclear a tu Bitácora, ${explorerName}. ` : 'Cada territorio explorado aporta una premisa nuclear a la Bitácora. '}
+          Al completar la travesía, estas frases ensamblan el argumento institucional de Plural sobre la capacidad gameful.
         </p>
 
         {/* Lista de frases por territorio */}
@@ -113,7 +115,7 @@ export function JournalModal() {
                 </div>
 
                 <p className="font-serif text-sm sm:text-base leading-relaxed italic">
-                  {hasDiscovered ? `“${entry.phrase}”` : '••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••'}
+                  {hasDiscovered ? formatQuotation(entry.phrase, explorerName) : '••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••'}
                 </p>
               </div>
             );

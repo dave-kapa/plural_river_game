@@ -15,7 +15,7 @@ export interface EntryData {
 
 export const ENTRY_DATA: EntryData = {
   title: 'El cambio es un ecosistema',
-  subtitle: 'Plural × Gameful Design — Documento maestro de travesía fluvial',
+  subtitle: 'Plural × Gameful Design — Travesía de Diseño Participativo',
   leadParagraphs: [
     'Plural ya sabe identificar qué comportamientos transformar, qué barreras los sostienen y qué ayudas pueden impulsar el cambio.',
     'Esta travesía explora qué nueva capacidad aparece cuando esas ayudas también se diseñan como experiencias motivacionales, participativas y medibles.',

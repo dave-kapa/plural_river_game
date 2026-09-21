@@ -34,12 +34,12 @@ describe('Reglas de Progreso Esencial vs. Descubrimiento Total (HUD)', () => {
       // T1 completado con los requisitos mínimos esenciales:
       // 6 disciplinas + definición + 3 de 4 lentes = 10 elementos descubiertos de 15 totales
       const minimalT1Items = [
-        't1:disc:diseno-de-juegos',
         't1:disc:ciencias-del-comportamiento',
-        't1:disc:psicologia-cognitiva-social',
-        't1:disc:narrativa-transmedia',
-        't1:disc:diseno-de-sistemas',
-        't1:disc:tecnologia-creatividad',
+        't1:disc:psicologia',
+        't1:disc:neurociencia-cognitiva',
+        't1:disc:experiencia-de-usuario',
+        't1:disc:narrativa',
+        't1:disc:diseno-de-juegos',
         't1:definition:built',
         't1:lens:lens-behavior',
         't1:lens:lens-experience',
@@ -170,7 +170,7 @@ describe('Reglas de Progreso Esencial vs. Descubrimiento Total (HUD)', () => {
       expect(computeTerritoryDiscoveryPercent('territorio-4', allT4Items)).toBe(100);
     });
 
-    it('Territorio 5 y Afluentes: requiere registro explícito y los 3 afluentes para desbloquear créditos', async () => {
+    it('Territorio 5 y Afluentes: requiere registro explícito y al menos 1 afluente dentro de travesía legítima para desbloquear créditos', async () => {
       // 1. Visitar un afluente sin registrarlo no debe guardarse en visitedTributaries
       const initial = await repo.getProgress();
       expect(initial.visitedTributaries).toHaveLength(0);
@@ -183,19 +183,26 @@ describe('Reglas de Progreso Esencial vs. Descubrimiento Total (HUD)', () => {
       let state = await repo.getProgress();
       expect(state.visitedTributaries).toEqual(['evaluation-as-experience']);
       expect(state.discoveredItems).toContain('t5:tributary:evaluation-as-experience');
-      expect(areCreditsUnlocked(state.visitedTributaries)).toBe(false);
+      expect(areCreditsUnlocked(state.visitedTributaries, state.territoryStatus)).toBe(false);
 
       // 3. Registrar el 2do afluente
       await repo.markTributaryVisited('from-intervention-to-product');
       state = await repo.getProgress();
       expect(state.visitedTributaries).toHaveLength(2);
-      expect(areCreditsUnlocked(state.visitedTributaries)).toBe(false);
+      expect(areCreditsUnlocked(state.visitedTributaries, state.territoryStatus)).toBe(false);
 
-      // 4. Registrar el 3er afluente desbloquea los créditos
+      // 4. Registrar el 3er afluente en travesía nueva (sin T4) no abre créditos
       await repo.markTributaryVisited('new-horizons');
       state = await repo.getProgress();
       expect(state.visitedTributaries).toHaveLength(3);
-      expect(areCreditsUnlocked(state.visitedTributaries)).toBe(true);
+      expect(state.creditsUnlocked).toBe(false);
+
+      // 5. En travesía legítimamente habilitada (T4 completado y T5 habilitado), se abren los créditos
+      await repo.saveTerritoryProgress('territorio-4', 'completed');
+      state = await repo.getProgress();
+      expect(state.territoryStatus['territorio-4']).toBe('completed');
+      expect(state.territoryStatus['territorio-5']).toBe('completed');
+      expect(areCreditsUnlocked(state.visitedTributaries, state.territoryStatus)).toBe(true);
       expect(state.creditsUnlocked).toBe(true);
     });
   });
@@ -266,6 +273,55 @@ describe('Reglas de Progreso Esencial vs. Descubrimiento Total (HUD)', () => {
 
       expect(reconciled.globalDiscoveryPercent).toBe(100);
       expect(reconciled.fullDiscoveryReached).toBe(true);
+    });
+
+    it('territorio-1 progresa limpiamente de 6/15 a 15/15 (100%) con todas las interacciones', async () => {
+      // 1. Paso inicial: solo 6 disciplinas seleccionadas
+      const sixDisciplines = [
+        't1:disc:ciencias-del-comportamiento',
+        't1:disc:psicologia',
+        't1:disc:neurociencia-cognitiva',
+        't1:disc:experiencia-de-usuario',
+        't1:disc:narrativa',
+        't1:disc:diseno-de-juegos',
+      ];
+      await repo.registerDiscoveredItems(sixDisciplines);
+      let state = await repo.getProgress();
+      let t1Count = state.discoveredItems.filter((id) => id.startsWith('t1:')).length;
+      expect(t1Count).toBe(6);
+      expect(state.territoryDiscoveryPercent['territorio-1']).toBe(40); // 6/15 = 40%
+
+      // 2. Articular definición canónica + distinción conceptual
+      await repo.registerDiscoveredItems(['t1:definition:built', 't1:concept:playful-vs-gameful']);
+      state = await repo.getProgress();
+      t1Count = state.discoveredItems.filter((id) => id.startsWith('t1:')).length;
+      expect(t1Count).toBe(8); // 8 de 15
+      expect(state.territoryDiscoveryPercent['territorio-1']).toBe(53); // 8/15 = 53%
+
+      // 3. Explorar los 4 lentes
+      const fourLenses = [
+        't1:lens:lens-behavior',
+        't1:lens:lens-experience',
+        't1:lens:lens-impact',
+        't1:lens:lens-systemic',
+      ];
+      await repo.registerDiscoveredItems(fourLenses);
+      state = await repo.getProgress();
+      t1Count = state.discoveredItems.filter((id) => id.startsWith('t1:')).length;
+      expect(t1Count).toBe(12); // 12 de 15
+      expect(state.territoryDiscoveryPercent['territorio-1']).toBe(80); // 12/15 = 80%
+
+      // 4. Descartar los 3 arquetipos de falsas rutas
+      const threeDiscards = [
+        't1:discard:points',
+        't1:discard:cosmetics',
+        't1:discard:coercion',
+      ];
+      await repo.registerDiscoveredItems(threeDiscards);
+      state = await repo.getProgress();
+      t1Count = state.discoveredItems.filter((id) => id.startsWith('t1:')).length;
+      expect(t1Count).toBe(15); // 15 de 15
+      expect(state.territoryDiscoveryPercent['territorio-1']).toBe(100); // 15/15 = 100%!
     });
   });
 });

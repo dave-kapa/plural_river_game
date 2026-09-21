@@ -30,52 +30,71 @@ export function TerritoryNode({
   const isAvailable = status === 'unlocked' || isVisited;
 
   const getStatusLabel = () => {
-    if (isCompleted) return 'Territorio recorrido';
-    if (isVisited) return 'Territorio en curso';
-    if (isAvailable) return 'Territorio disponible';
-    return 'Territorio bloqueado';
+    if (isCompleted) return '✓ Recorrido';
+    if (isVisited) return 'En curso';
+    if (isAvailable) return 'Disponible para navegar';
+    return 'Bloqueado';
   };
 
   const content = (
     <div className="flex flex-col items-center group relative text-center">
-      {/* Círculo de la estación del río */}
+      {/* Ficha táctil manipulable de la estación fluvial */}
       <div
-        className={`w-14 h-14 md:w-16 md:h-16 rounded-full flex items-center justify-center border-2 transition-all duration-300 relative ${
+        className={`w-14 h-14 md:w-16 md:h-16 rounded-full flex items-center justify-center border-2 transition-all duration-300 relative shadow-xl ${
           isCompleted
-            ? 'bg-river-900 border-river-300 text-river-100 shadow-[0_0_20px_rgba(69,150,156,0.5)] ring-2 ring-river-400/40'
+            ? 'bg-jade-600 border-jade-200 text-white shadow-[0_0_25px_rgba(45,138,110,0.7)] ring-2 ring-jade-400/60'
+            : isVisited
+            ? 'bg-forest-900 border-solar-400 text-solar-200 shadow-[0_0_20px_rgba(212,155,53,0.5)] ring-2 ring-solar-400/50 hover:scale-105'
             : isAvailable
-            ? 'bg-canopy-900 border-river-400 text-earth-100 shadow-md ring-2 ring-river-400/30 hover:scale-105 animate-pulse-subtle'
-            : 'bg-canopy-950 border-canopy-800 text-canopy-700 opacity-60 cursor-not-allowed'
+            ? 'bg-forest-900 border-water-400 text-water-100 shadow-[0_0_20px_rgba(38,180,214,0.5)] ring-2 ring-water-400/60 hover:scale-105'
+            : 'bg-forest-950/90 border-forest-800 text-forest-600 opacity-50 grayscale cursor-not-allowed'
         }`}
       >
         {isCompleted ? (
-          <Check className="w-6 h-6 text-river-300" />
+          <Check className="w-6 h-6 text-white stroke-[2.5]" />
         ) : isLocked ? (
-          <Lock className="w-5 h-5 text-earth-400/60" />
+          <Lock className="w-5 h-5 text-earth-400/80" />
         ) : (
           <span className="font-serif font-bold text-lg md:text-xl text-earth-50">
             {number}
           </span>
         )}
 
-        {/* Indicador de corriente activa */}
-        {isAvailable && !isCompleted && (
+        {/* Indicador sutil de corriente activa para estaciones disponibles */}
+        {isAvailable && !isCompleted && !isVisited && (
           <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-river-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-river-500"></span>
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-water-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-water-500"></span>
+          </span>
+        )}
+
+        {/* Distintivo para estación en curso */}
+        {isVisited && (
+          <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5">
+            <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-solar-400 shadow-sm"></span>
           </span>
         )}
       </div>
 
-      {/* Cartel editorial de la estación */}
-      <div className="mt-3 max-w-[200px] md:max-w-[220px]">
-        <span className="block text-[10px] font-mono uppercase tracking-widest text-river-400/90 mb-0.5">
+      {/* Cartel editorial de la estación con superficie protegida de alto contraste */}
+      <div className="mt-3 max-w-[190px] sm:max-w-[210px] md:max-w-[230px] p-2.5 rounded-xl bg-forest-950/85 border border-forest-800/80 backdrop-blur-md shadow-lg transition-all group-hover:border-water-500/60">
+        <span
+          className={`block text-[10px] font-mono uppercase tracking-widest font-semibold mb-1 ${
+            isCompleted
+              ? 'text-jade-300'
+              : isVisited
+              ? 'text-solar-300'
+              : isAvailable
+              ? 'text-water-300'
+              : 'text-earth-400/70'
+          }`}
+        >
           {getStatusLabel()}
         </span>
-        <h3 className="font-serif font-semibold text-sm md:text-base text-earth-100 leading-tight">
+        <h3 className="font-serif font-semibold text-xs sm:text-sm md:text-base text-earth-50 leading-tight">
           {title}
         </h3>
-        <p className="hidden md:block text-[11px] text-earth-300/80 font-sans mt-1 line-clamp-2">
+        <p className="hidden md:block text-[11px] text-earth-200/85 font-sans mt-1.5 leading-snug line-clamp-2">
           {functionalQuestion}
         </p>
       </div>

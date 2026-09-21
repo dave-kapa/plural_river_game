@@ -5,6 +5,13 @@ export default defineConfig({
   test: {
     environment: "node",
     globals: true,
+    include: ["tests/**/*.test.ts"],
+    pool: "forks",
+    poolOptions: {
+      forks: {
+        singleFork: true,
+      },
+    },
   },
   resolve: {
     alias: {

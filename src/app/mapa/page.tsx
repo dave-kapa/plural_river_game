@@ -6,7 +6,7 @@ import { useProgression } from '@/lib/progression/ProgressionContext';
 import { Compass, Info, Sparkles, BookMarked } from 'lucide-react';
 
 export default function MapPage() {
-  const { progress, setLastVisited, openJournal, areCreditsUnlocked } = useProgression();
+  const { progress, setLastVisited, openJournal, areCreditsUnlocked, explorerName } = useProgression();
 
   useEffect(() => {
     setLastVisited('/mapa');
@@ -53,7 +53,7 @@ export default function MapPage() {
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-editorial-accent">
             <Compass className="w-4 h-4" />
-            <span>Cartografía Fluvial</span>
+            <span>{explorerName ? `Cartografía Fluvial • ${explorerName}` : 'Cartografía Fluvial'}</span>
           </div>
 
           <button
